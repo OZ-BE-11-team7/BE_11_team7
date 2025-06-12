@@ -1,16 +1,15 @@
-# routes/__init__.py
+from .answers import answers_blp
+from .choices import choices_blp
+from .questions import questions_blp
+from .stats_routes import stats_routes_blp
+from .users import user_blp
+from .images import images_blp
 
-from .users import user_bp
-from .images import image_bp
-from .questions import question_bp
-from .choices import choice_bp
-from .answers import answer_bp
-from .stats_routes import stats_bp
 
-def register_routes(app):
-    app.register_blueprint(user_bp)
-    app.register_blueprint(image_bp)
-    app.register_blueprint(question_bp)
-    app.register_blueprint(choice_bp)
-    app.register_blueprint(answer_bp)
-    app.register_blueprint(stats_bp)
+def register_routes(application):
+    application.register_blueprint(user_blp)
+    application.register_blueprint(questions_blp)
+    application.register_blueprint(images_blp)
+    application.register_blueprint(choices_blp)
+    application.register_blueprint(answers_blp)
+    application.register_blueprint(stats_routes_blp)
