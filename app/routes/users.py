@@ -1,54 +1,50 @@
-# routes/users.py
+from flask import Blueprint, jsonify, request
+from sqlalchemy.exc import IntegrityError
 
-from flask import Blueprint, request, jsonify
-from models import db, User, AgeEnum, GenderEnum
-from datetime import datetime
+from app.models import User
+from config import db
 
-user_bp = Blueprint('users', __name__, url_prefix='/users')
+user_blp = Blueprint("users", __name__)
 
-# 사용자 전체 조회
-@user_bp.route('/', methods=['GET'])
-def get_users():
-    users = User.query.all()
-    return jsonify([
-        {
-            'id': u.id,
-            'name': u.name,
-            'age': u.age.value,
-            'gender': u.gender.value,
-            'email': u.email,
-            'created_at': u.created_at
-        } for u in users
-    ])
 
-# 단일 사용자 조회
-@user_bp.route('/<int:user_id>', methods=['GET'])
-def get_user(user_id):
-    user = User.query.get_or_404(user_id)
-    return jsonify({
-        'id': user.id,
-        'name': user.name,
-        'age': user.age.value,
-        'gender': user.gender.value,
-        'email': user.email,
-        'created_at': user.created_at
-    })
+@user_blp.route("/", methods=["GET"])
+def connect():
+    if request.method == "GET":
+        return jsonify({"message": "Success Connect"})
 
-# 사용자 등록
-@user_bp.route('/', methods=['POST'])
-def create_user():
-    data = request.get_json()
 
-    try:
-        user = User(
-            name=data['name'],
-            age=AgeEnum(data['age']),
-            gender=GenderEnum(data['gender']),
-            email=data['email'],
-            created_at=datetime.utcnow()
-        )
-        db.session.add(user)
-        db.session.commit()
-        return jsonify({'message': 'User created', 'id': user.id}), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+@user_blp.route("/signup", methods=["POST"])
+def signup_page():
+    if request.method == "POST":
+        try:
+            data = request.get_json()
+
+            user = User(
+                name=data["name"],
+                age=data["age"],
+                gender=data["gender"],
+                email=data["email"],
+            )
+
+            db.session.add(user)
+            db.session.commit()
+
+            return (
+                jsonify(
+                    {
+                        "message": f"{user.name}님 회원가입을 축하합니다",
+                        "user_id": user.id,
+                    }
+                ),
+                201,
+            )
+
+        except KeyError as e:
+            return jsonify({"message": f"Missing required field: {str(e)}"}), 400
+
+        except ValueError:
+            return jsonify({"message": "이미 존재하는 계정 입니다."}), 400
+
+        except IntegrityError:
+            return jsonify({"message": "이미 존재하는 이메일 입니다."}), 400
+            

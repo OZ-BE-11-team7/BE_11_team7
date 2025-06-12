@@ -1,48 +1,29 @@
-# routes/images.py
+from flask import jsonify, request, Blueprint
+from app.models import Image
+from config import db
 
-from flask import Blueprint, request, jsonify
-from models import db, Image, ImageTypeEnum
-from datetime import datetime
+images_blp = Blueprint("images", __name__)
 
-image_bp = Blueprint('images', __name__, url_prefix='/images')
 
-# 이미지 목록 조회
-@image_bp.route('/', methods=['GET'])
-def get_images():
-    images = Image.query.all()
-    return jsonify([
-        {
-            'id': i.id,
-            'url': i.url,
-            'type': i.type.value,
-            'created_at': i.created_at
-        } for i in images
-    ])
-
-# 이미지 단건 조회
-@image_bp.route('/<int:image_id>', methods=['GET'])
-def get_image(image_id):
-    image = Image.query.get_or_404(image_id)
-    return jsonify({
-        'id': image.id,
-        'url': image.url,
-        'type': image.type.value,
-        'created_at': image.created_at
-    })
-
-# 이미지 등록 (파일 업로드 없이 URL만 받는 구조)
-@image_bp.route('/', methods=['POST'])
+@images_blp.route("/image", methods=["POST"])
 def create_image():
-    data = request.get_json()
+    if request.method == "POST":
+        try:
+            data = request.get_json()
+            image = Image(
+                url=data["url"],
+                type=data["type"],
+            )
+            db.session.add(image)
+            db.session.commit()
+            return jsonify({"message": f"ID: {image.id} Image Success Create"}), 201
 
-    try:
-        image = Image(
-            url=data['url'],
-            type=ImageTypeEnum(data['type']),
-            created_at=datetime.utcnow()
-        )
-        db.session.add(image)
-        db.session.commit()
-        return jsonify({'message': 'Image created', 'id': image.id}), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        except KeyError as e:
+            return jsonify({"message": f"Missing required field: {str(e)}"}), 400
+
+
+@images_blp.route("/image/main", methods=["GET"])
+def get_main_image_route():
+    if request.method == "GET":
+        image = Image.query.filter_by(type="main").first()
+        return jsonify({"image": image.url if image.url else None}), 200

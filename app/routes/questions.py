@@ -1,73 +1,76 @@
-# routes/questions.py
+from flask import request, Blueprint, jsonify
 
-from flask import Blueprint, request, jsonify
-from models import db, Question, Image
-from datetime import datetime
-from sqlalchemy.sql import func
+from app.models import Question, Image, Choices
+from config import db
 
-question_bp = Blueprint('questions', __name__, url_prefix='/questions')
+questions_blp = Blueprint("questions", __name__)
 
-# 질문 목록 조회
-@question_bp.route('/', methods=['GET'])
-def get_questions():
-    questions = Question.query.filter_by(is_active=True).order_by(Question.sqe).all()
-    return jsonify([
-        {
-            'id': q.id,
-            'title': q.title,
-            'sqe': q.sqe,
-            'image_url': q.image.url if q.image else None
-        }
-        for q in questions
-    ])
 
-# 질문 단건 조회
-@question_bp.route('/<int:question_id>', methods=['GET'])
-def get_question(question_id):
-    question = Question.query.get_or_404(question_id)
-    return jsonify({
-        'id': question.id,
-        'title': question.title,
-        'sqe': question.sqe,
-        'image_url': question.image.url if question.image else None,
-        'is_active': question.is_active
-    })
+@questions_blp.route("/question", methods=["POST"])
+def create_questions():
+    """
+    question 생성 API
+    """
+    if request.method == "POST":
+        try:
+            data = request.get_json()
 
-# 질문 생성
-@question_bp.route('/', methods=['POST'])
-def create_question():
-    data = request.get_json()
-    question = Question(
-        title=data['title'],
-        sqe=data.get('sqe', 0),
-        image_id=data.get('image_id'),  # optional
-        is_active=True,
-        created_at=func.now(),
-        updated_at=func.now()
+            image = Image.query.get(data["image_id"])
+
+            # 이미지가 없으면 404 error
+            if not image:
+                return jsonify({"message": "Image not found"}), 404
+
+            # 이미지 타입이 sub가 아니면 400 error
+            if image.type.value != "sub":
+                return jsonify({"message": "Image type must be 'sub'"}), 400
+
+            question = Question(
+                title=data["title"],
+                sqe=data["sqe"],
+                image_id=data["image_id"],
+                is_active=data.get("is_active", True),
+            )
+            db.session.add(question)
+            db.session.commit()
+
+            return jsonify(
+                {"message": f"Title: {question.title} question Success Create"}
+            ), 201
+
+        except KeyError as e:
+            return jsonify({"message": f"Missing required field: {str(e)}"}), 400
+
+
+@questions_blp.route("/questions/<int:question_sqe>", methods=["GET"])
+def get_question(question_sqe):
+    """
+    특정 질문 ID에 대한 질문과 선택지를 반환하는 API
+    """
+    question = Question.query.filter_by(sqe=question_sqe, is_active=True).first()
+
+    if not question:
+        return jsonify({"error": "존재하지 않는 질문입니다."}), 404
+
+    image = Image.query.get(question.image_id)
+
+    choice_list = (
+        Choices.query.filter_by(question_id=question_sqe, is_active=True)
+        .order_by(Choices.sqe)
+        .all()
     )
-    db.session.add(question)
-    db.session.commit()
-    return jsonify({'message': 'Question created', 'id': question.id}), 201
 
-# 질문 수정
-@question_bp.route('/<int:question_id>', methods=['PUT'])
-def update_question(question_id):
-    data = request.get_json()
-    question = Question.query.get_or_404(question_id)
+    return jsonify(
+        {
+            "title": question.title,
+            "image": image.url if image else None,
+            "choices": [choice.to_dict() for choice in choice_list],
+        }
+    )
 
-    question.title = data.get('title', question.title)
-    question.sqe = data.get('sqe', question.sqe)
-    question.image_id = data.get('image_id', question.image_id)
-    question.updated_at = func.now()
 
-    db.session.commit()
-    return jsonify({'message': 'Question updated'})
-
-# 질문 삭제
-@question_bp.route('/<int:question_id>', methods=['DELETE'])
-def delete_question(question_id):
-    question = Question.query.get_or_404(question_id)
-    question.is_active = False
-    question.updated_at = func.now()
-    db.session.commit()
-    return jsonify({'message': 'Question soft-deleted'})
+@questions_blp.route("/questions/count", methods=["GET"])
+def count_question():
+    if request.method == "GET":
+        count = len(Question.query.filter_by(is_active=True).all())
+        return jsonify({"total": count})
